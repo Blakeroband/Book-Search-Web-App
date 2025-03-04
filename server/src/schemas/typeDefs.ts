@@ -7,9 +7,16 @@ const typeDefs = `
     image: String
     link: String
     }
+  type user {
+    _id: ID!
+    username: String
+    email: String
+    password: String
+    }
 
   type Query {
     books: [Book]
+    users: [User]
   }
 `
 
