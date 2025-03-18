@@ -15,7 +15,7 @@ const SignupForm = ({}: { handleModalClose: () => void }) => {
   const [validated] = useState(false);
   // set state for alert
   const [showAlert, setShowAlert] = useState(false);
-  const [createUser] = useMutation(CREATE_USER);
+  const [addUser] = useMutation(CREATE_USER);
   const handleInputChange = (event: ChangeEvent<HTMLInputElement>) => {
     const { name, value } = event.target;
     setUserFormData({ ...userFormData, [name]: value });
@@ -32,19 +32,24 @@ const SignupForm = ({}: { handleModalClose: () => void }) => {
     }
 
     try {
-      const { data } = await createUser({
-        variables: { ...userFormData },
+      const { data } = await addUser({
+        variables: { 
+          username: userFormData.username,
+          email: userFormData.email,
+          password: userFormData.password,
+        },
       });
-      // const response = await createUser(userFormData);
-
-      // if (!response.ok) {
-      //   throw new Error('something went wrong!');
-      // }
-
-      // const { token } = await response.json();
-      Auth.login(data.login.token);
+      
+      console.log('Server response:', data);
+      
+      // Use createUser instead of addUser to match the response structure
+      if (data && data.createUser && data.createUser.token) {
+        Auth.login(data.createUser.token);
+      } else {
+        throw new Error('Invalid response structure from server');
+      }
     } catch (err) {
-      console.error(err);
+      console.error('Detailed error:', err);
       setShowAlert(true);
     }
 

@@ -10,22 +10,31 @@ import {
 } from 'react-bootstrap';
 
 import Auth from '../utils/auth';
-import { saveBook, searchGoogleBooks } from '../utils/API';
+// Modify this to keep only searchGoogleBooks (external API)
+import { searchGoogleBooks } from '../utils/API';
 import { saveBookIds, getSavedBookIds } from '../utils/localStorage';
 import type { Book } from '../models/Book';
 import type { GoogleAPIBook } from '../models/GoogleAPIBook';
+// Add Apollo Client imports
+import { useMutation } from '@apollo/client';
+import { SAVE_BOOK } from '../utils/Mutations';
+import { Alert } from 'react-bootstrap';
+
 
 const SearchBooks = () => {
   // create state for holding returned google api data
   const [searchedBooks, setSearchedBooks] = useState<Book[]>([]);
   // create state for holding our search field data
   const [searchInput, setSearchInput] = useState('');
-
   // create state to hold saved bookId values
   const [savedBookIds, setSavedBookIds] = useState(getSavedBookIds());
+  // Add state for showing alert
+  const [showAlert, setShowAlert] = useState(false);
+
+  // Add useMutation hook for saveBook
+  const [saveBookMutation] = useMutation(SAVE_BOOK);
 
   // set up useEffect hook to save `savedBookIds` list to localStorage on component unmount
-  // learn more here: https://reactjs.org/docs/hooks-effect.html#effects-with-cleanup
   useEffect(() => {
     return () => saveBookIds(savedBookIds);
   });
@@ -52,20 +61,25 @@ const SearchBooks = () => {
         authors: book.volumeInfo.authors || ['No author to display'],
         title: book.volumeInfo.title,
         description: book.volumeInfo.description,
-        image: book.volumeInfo.imageLinks?.thumbnail || '',
+        image: book.volumeInfo.imageLinks?.thumbnail || '', // Include link if needed for your schema
       }));
 
       setSearchedBooks(bookData);
       setSearchInput('');
     } catch (err) {
       console.error(err);
+      setShowAlert(true);
     }
   };
 
-  // create function to handle saving a book to our database
+  // Replace handleSaveBook function with GraphQL version
   const handleSaveBook = async (bookId: string) => {
     // find the book in `searchedBooks` state by the matching id
-    const bookToSave: Book = searchedBooks.find((book) => book.bookId === bookId)!;
+    const bookToSave = searchedBooks.find((book) => book.bookId === bookId);
+
+    if (!bookToSave) {
+      return false;
+    }
 
     // get token
     const token = Auth.loggedIn() ? Auth.getToken() : null;
@@ -75,18 +89,23 @@ const SearchBooks = () => {
     }
 
     try {
-      const response = await saveBook(bookToSave, token);
+      // Use mutation instead of REST API call
+      const { data } = await saveBookMutation({
+        variables: { bookData: { ...bookToSave } }
+      });
 
-      if (!response.ok) {
-        throw new Error('something went wrong!');
+      if (data && data.saveBook) {
+        // if book successfully saves to user's account, save book id to state
+        setSavedBookIds([...savedBookIds, bookToSave.bookId]);
+      } else {
+        throw new Error('Failed to save book');
       }
-
-      // if book successfully saves to user's account, save book id to state
-      setSavedBookIds([...savedBookIds, bookToSave.bookId]);
     } catch (err) {
       console.error(err);
+      setShowAlert(true);
     }
   };
+
 
   return (
     <>
@@ -116,6 +135,16 @@ const SearchBooks = () => {
       </div>
 
       <Container>
+        {/* Add alert for errors */}
+        <Alert 
+          dismissible 
+          onClose={() => setShowAlert(false)} 
+          show={showAlert} 
+          variant='danger'
+        >
+          Something went wrong with saving the book!
+        </Alert>
+        
         <h2 className='pt-5'>
           {searchedBooks.length
             ? `Viewing ${searchedBooks.length} results:`
